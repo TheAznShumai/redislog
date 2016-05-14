@@ -66,6 +66,7 @@ char  *Redislog_key = NULL;
 int   Redislog_min_error_statement = ERROR;
 int   Redislog_min_messages = WARNING;
 bool  Redislog_ship_to_redis_only = TRUE;
+bool  Redislog_ship_to_publish = TRUE;
 bool  Redislog_shuffle_hosts = TRUE;
 char  *Redislog_fields = NULL;
 
@@ -824,7 +825,11 @@ redis_log_shipper(char *data, int len)
 		}
 
 		/* Push the event using binary safe API */
-		reply = redisCommand(redis_context, "RPUSH %s %b", Redislog_key, data, (size_t) len);
+    if (Redislog_ship_to_publish)
+      reply = redisCommand(redis_context, "PUBLISH %s %b", Redislog_key, data, (size_t) len);
+    else
+      reply = redisCommand(redis_context, "RPUSH %s %b", Redislog_key, data, (size_t) len);
+
 		if (reply != NULL || !redis_context->err)
 		{
 			/* The event have been sent correctly, so we are done */
@@ -1353,6 +1358,18 @@ _PG_init(void)
 	  "in case no Redis service is available. "
 	  "By default it is set to false.",
 	  &Redislog_ship_to_redis_only,
+	  FALSE,
+	  PGC_SUSET,
+	  GUC_NOT_IN_SAMPLE,
+	  NULL,
+	  NULL,
+	  NULL);
+
+	DefineCustomBoolVariable("redislog.ship_to_publish",
+	  "Publishes Log messages",
+	  "If set to true, all log messages will PUBLISH to the key/channel "
+    "By default it is set to false.",
+	  &Redislog_ship_to_publish,
 	  FALSE,
 	  PGC_SUSET,
 	  GUC_NOT_IN_SAMPLE,
